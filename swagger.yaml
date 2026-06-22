@@ -1,0 +1,456 @@
+openapi: 3.0.0
+info:
+  title: Lautan Uang API
+  version: 1.0.0
+  description: |
+    API untuk platform pendanaan komunitas nelayan.
+    - **NELAYAN**: dapat membuat & mengelola kampanye pendanaan
+    - **INVESTOR**: dapat melihat kampanye dan berinvestasi
+
+servers:
+  - url: http://localhost:3000
+    description: Local development server
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    UserRegister:
+      type: object
+      required: [email, password, role]
+      properties:
+        email:
+          type: string
+          format: email
+          example: nelayan@test.com
+        password:
+          type: string
+          minLength: 6
+          example: password123
+        role:
+          type: string
+          enum: [INVESTOR, NELAYAN]
+          example: NELAYAN
+
+    UserLogin:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: nelayan@test.com
+        password:
+          type: string
+          example: password123
+
+    Campaign:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        title:
+          type: string
+          example: Pengadaan Kapal Motor 40PK untuk Nelayan Pantai Selatan
+        description:
+          type: string
+          example: Dana digunakan untuk membeli kapal motor baru guna meningkatkan hasil tangkap ikan.
+        targetAmount:
+          type: string
+          description: Nilai dalam Rupiah (BigInt di-serialisasi sebagai string)
+          example: "50000000"
+        currentAmount:
+          type: string
+          example: "0"
+        status:
+          type: string
+          enum: [ACTIVE, FUNDED, CLOSED]
+          example: ACTIVE
+        userId:
+          type: integer
+          example: 2
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CampaignInput:
+      type: object
+      required: [title, description, targetAmount]
+      properties:
+        title:
+          type: string
+          example: Pengadaan Kapal Motor 40PK
+        description:
+          type: string
+          example: Dana untuk membeli kapal motor baru.
+        targetAmount:
+          type: number
+          example: 50000000
+
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
+
+paths:
+  /api/health:
+    get:
+      tags: [System]
+      summary: Health check server
+      responses:
+        '200':
+          description: Server berjalan normal
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+
+  /api/auth/register:
+    post:
+      tags: [Auth]
+      summary: Registrasi user baru
+      description: Mendaftarkan user baru sebagai INVESTOR atau NELAYAN.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRegister'
+      responses:
+        '201':
+          description: Registrasi berhasil
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  email:
+                    type: string
+                  role:
+                    type: string
+        '400':
+          description: Field tidak lengkap
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Email sudah terdaftar
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Rate limit — terlalu banyak percobaan
+
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Login dan dapatkan JWT token
+      description: |
+        Login dengan email & password. Token berlaku selama **1 hari**.
+        Rate limited: **maksimum 10 percobaan per 15 menit per IP**.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserLogin'
+      responses:
+        '200':
+          description: Login berhasil
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                    example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        '400':
+          description: Field tidak lengkap
+        '401':
+          description: Email atau password salah
+        '429':
+          description: Rate limit tercapai
+
+  /api/campaigns:
+    get:
+      tags: [Campaign]
+      summary: Daftar semua kampanye aktif
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Daftar kampanye ACTIVE
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Campaign'
+        '401':
+          description: Token tidak ditemukan
+        '403':
+          description: Token tidak valid atau kadaluarsa
+
+    post:
+      tags: [Campaign]
+      summary: Buat kampanye pendanaan baru (khusus NELAYAN)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CampaignInput'
+      responses:
+        '201':
+          description: Kampanye berhasil dibuat
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Campaign'
+        '400':
+          description: Field tidak lengkap atau targetAmount tidak valid
+        '401':
+          description: Token tidak ditemukan
+        '403':
+          description: Bukan role NELAYAN
+
+  /api/campaigns/{id}:
+    get:
+      tags: [Campaign]
+      summary: Detail kampanye berdasarkan ID
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+          description: ID kampanye
+      responses:
+        '200':
+          description: Detail kampanye
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Campaign'
+        '404':
+          description: Kampanye tidak ditemukan
+
+    put:
+      tags: [Campaign]
+      summary: Update kampanye (hanya pemilik NELAYAN)
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                targetAmount:
+                  type: number
+                status:
+                  type: string
+                  enum: [ACTIVE, FUNDED, CLOSED]
+      responses:
+        '200':
+          description: Kampanye berhasil diupdate
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Campaign'
+        '403':
+          description: Bukan pemilik kampanye atau bukan NELAYAN
+        '404':
+          description: Kampanye tidak ditemukan
+
+    delete:
+      tags: [Campaign]
+      summary: Hapus kampanye (hanya pemilik NELAYAN)
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Kampanye berhasil dihapus
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Kampanye berhasil dihapus.
+        '403':
+          description: Bukan pemilik kampanye atau bukan NELAYAN
+        '404':
+          description: Kampanye tidak ditemukan
+
+  /api/campaigns/{id}/invest:
+    post:
+      tags: [Investment]
+      summary: Investasi ke kampanye (khusus INVESTOR)
+      description: |
+        Menyuntikkan dana ke kampanye aktif.
+
+        **Mekanisme Optimistic Locking (Pencegahan Race Condition):**
+        1. Baca `currentAmount` dan `version` kampanye
+        2. Validasi `currentAmount + amount <= targetAmount`
+        3. `UPDATE campaigns SET currentAmount=..., version=version+1 WHERE id=? AND version=?`
+        4. Jika `count === 0` → versi sudah berubah oleh transaksi lain → `409 Conflict`
+        5. Jika sukses → catat di tabel `Transaction`, otomatis set `status=FUNDED` jika penuh
+
+        Tidak ada row lock (pessimistic). Zero deadlock. Skalabilitas tinggi.
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+          description: ID kampanye tujuan investasi
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount]
+              properties:
+                amount:
+                  type: number
+                  description: Jumlah investasi dalam IDR
+                  example: 500000
+      responses:
+        '200':
+          description: Investasi berhasil
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Investasi berhasil.
+                  transaction:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                      amount:
+                        type: string
+                        example: "500000"
+                      campaignId:
+                        type: integer
+                      investorId:
+                        type: integer
+                      createdAt:
+                        type: string
+                        format: date-time
+                  campaign:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                      currentAmount:
+                        type: string
+                        example: "500000"
+                      targetAmount:
+                        type: string
+                        example: "1000000"
+                      status:
+                        type: string
+                        enum: [ACTIVE, FUNDED]
+                      version:
+                        type: integer
+                        description: Versi setelah update (digunakan Optimistic Locking)
+                        example: 1
+        '400':
+          description: |
+            Amount tidak valid, kampanye tidak aktif,
+            atau investasi melebihi targetAmount (OVERFUND)
+        '403':
+          description: User bukan role INVESTOR
+        '404':
+          description: Kampanye tidak ditemukan
+        '409':
+          description: |
+            **Optimistic Lock Conflict** — Kampanye diperbarui oleh transaksi
+            lain secara bersamaan. Client harus retry request ini.
+
+  /api/campaigns/{id}/transactions:
+    get:
+      tags: [Investment]
+      summary: Riwayat semua transaksi pada kampanye
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Daftar transaksi investasi
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                    amount:
+                      type: string
+                      example: "500000"
+                    investor:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                        email:
+                          type: string
+                    createdAt:
+                      type: string
+                      format: date-time
+        '404':
+          description: Kampanye tidak ditemukan
