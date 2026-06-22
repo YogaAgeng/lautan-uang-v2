@@ -1,11 +1,15 @@
 import express from 'express';
+import authRouter from './routes/auth';
 
 const app = express();
 app.use(express.json());
 
-// Implementasi rute untuk memuaskan tes
+// Health check
 app.get('/api/health', (req, res) => {
   res.status(200).json({ status: 'success' });
 });
 
-export default app;
+// Auth routes: /api/auth/register, /api/auth/login
+app.use('/api/auth', authRouter);
+
+export default app;
