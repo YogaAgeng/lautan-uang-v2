@@ -1,0 +1,241 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@400;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── Ocean Color Palette ─────────────────────────────── */
+:root {
+  --ocean-950: #020b18;
+  --ocean-900: #041224;
+  --ocean-800: #0a1e3d;
+  --ocean-700: #0d3b6e;
+  --ocean-600: #0e5190;
+  --ocean-500: #0891b2;
+  --ocean-400: #06b6d4;
+  --ocean-300: #22d3ee;
+  --ocean-200: #a5f3fc;
+  --teal-500:  #14b8a6;
+  --gold-500:  #f59e0b;
+  --gold-400:  #fbbf24;
+  --emerald-500: #10b981;
+  --glass-bg:  rgba(255,255,255,0.07);
+  --glass-border: rgba(255,255,255,0.12);
+  --glass-shadow: 0 8px 32px rgba(0,0,0,0.4);
+}
+
+/* ─── Reset & Base ────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: 'Inter', system-ui, sans-serif;
+  background: var(--ocean-950);
+  color: #e2e8f0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5 {
+  font-family: 'Poppins', sans-serif;
+}
+
+#root {
+  width: 100%;
+  min-height: 100svh;
+  margin: 0;
+  text-align: left;
+  border: none;
+}
+
+/* ─── Glassmorphism Utilities ─────────────────────────── */
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+
+.glass-dark {
+  background: rgba(4, 18, 36, 0.7);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(6, 182, 212, 0.15);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+}
+
+/* ─── Ocean Gradient Backgrounds ─────────────────────── */
+.bg-ocean {
+  background: linear-gradient(135deg, var(--ocean-950) 0%, var(--ocean-800) 50%, #0a3d62 100%);
+}
+
+.bg-ocean-deep {
+  background: radial-gradient(ellipse at top, #0d3b6e 0%, #020b18 70%);
+}
+
+/* ─── Input Ocean Glow ────────────────────────────────── */
+.input-ocean {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(6,182,212,0.2);
+  color: #e2e8f0;
+  transition: all 0.3s ease;
+  outline: none;
+}
+.input-ocean::placeholder { color: rgba(148,163,184,0.6); }
+.input-ocean:focus {
+  border-color: var(--ocean-400);
+  box-shadow: 0 0 0 3px rgba(6,182,212,0.15), 0 0 20px rgba(6,182,212,0.1);
+  background: rgba(255,255,255,0.08);
+}
+
+/* ─── Buttons ─────────────────────────────────────────── */
+.btn-ocean {
+  background: linear-gradient(135deg, var(--ocean-600), var(--ocean-400));
+  color: white;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 20px rgba(8,145,178,0.4);
+}
+.btn-ocean:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(8,145,178,0.5);
+  background: linear-gradient(135deg, var(--ocean-500), var(--ocean-300));
+}
+.btn-ocean:active { transform: translateY(0); }
+
+.btn-gold {
+  background: linear-gradient(135deg, #d97706, var(--gold-400));
+  color: #1a0a00;
+  font-weight: 700;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 20px rgba(245,158,11,0.35);
+}
+.btn-gold:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(245,158,11,0.5);
+}
+
+.btn-emerald {
+  background: linear-gradient(135deg, #059669, var(--emerald-500));
+  color: white;
+  font-weight: 700;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 20px rgba(16,185,129,0.35);
+}
+.btn-emerald:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(16,185,129,0.5);
+}
+
+/* ─── Stat Cards ──────────────────────────────────────── */
+.stat-card {
+  background: rgba(13, 59, 110, 0.3);
+  border: 1px solid rgba(6,182,212,0.12);
+  border-radius: 16px;
+  transition: all 0.3s ease;
+}
+.stat-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(6,182,212,0.35);
+  box-shadow: 0 12px 40px rgba(6,182,212,0.15);
+}
+
+/* ─── Sidebar ─────────────────────────────────────────── */
+.sidebar {
+  background: linear-gradient(180deg, #041224 0%, #020b18 100%);
+  border-right: 1px solid rgba(6,182,212,0.1);
+}
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  color: rgba(148,163,184,0.8);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  text-decoration: none;
+}
+.sidebar-item:hover {
+  background: rgba(6,182,212,0.1);
+  color: var(--ocean-300);
+}
+.sidebar-item.active {
+  background: rgba(6,182,212,0.15);
+  color: var(--ocean-300);
+  border-left: 3px solid var(--ocean-400);
+}
+
+/* ─── Animations ──────────────────────────────────────── */
+@keyframes wave {
+  0%   { transform: translateX(0) translateZ(0) scaleY(1); }
+  50%  { transform: translateX(-25%) translateZ(0) scaleY(0.8); }
+  100% { transform: translateX(-50%) translateZ(0) scaleY(1); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-12px); }
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeInLeft {
+  from { opacity: 0; transform: translateX(-24px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(6,182,212,0.4); }
+  50%       { box-shadow: 0 0 0 8px rgba(6,182,212,0); }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%       { transform: translateX(-8px); }
+  40%       { transform: translateX(8px); }
+  60%       { transform: translateX(-5px); }
+  80%       { transform: translateX(5px); }
+}
+
+.animate-wave       { animation: wave 8s linear infinite; }
+.animate-float      { animation: float 4s ease-in-out infinite; }
+.animate-fadeInUp   { animation: fadeInUp 0.6s ease both; }
+.animate-fadeInLeft { animation: fadeInLeft 0.6s ease both; }
+.animate-shake      { animation: shake 0.4s ease; }
+.animate-pulse-glow { animation: pulse-glow 2s ease infinite; }
+
+.delay-100 { animation-delay: 0.1s; }
+.delay-200 { animation-delay: 0.2s; }
+.delay-300 { animation-delay: 0.3s; }
+.delay-400 { animation-delay: 0.4s; }
+
+/* ─── Shimmer Text ────────────────────────────────────── */
+.text-shimmer {
+  background: linear-gradient(90deg, var(--ocean-300), var(--gold-400), var(--ocean-300));
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: shimmer 3s linear infinite;
+}
+
+/* ─── Scrollbar ───────────────────────────────────────── */
+::-webkit-scrollbar       { width: 6px; }
+::-webkit-scrollbar-track { background: var(--ocean-950); }
+::-webkit-scrollbar-thumb {
+  background: var(--ocean-600);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--ocean-500); }

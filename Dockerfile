@@ -1,27 +1,26 @@
-# Stage 1: Builder
-FROM node:18-alpine AS builder
+# Gunakan image Node.js yang ringan
+FROM node:22-alpine
+
+# Set direktori kerja di dalam container
 WORKDIR /app
 
-# BLINDSPOT DEFENSE: Kopi package.json dulu, baru jalankan npm install.
-# Ini memanfaatkan Docker Layer Caching. Jika source code berubah tapi dependencies tidak,
-# Docker tidak akan menjalankan ulang npm install.
+# Salin file dependensi
 COPY package*.json ./
+
+# Instal semua dependensi
 RUN npm install
 
-# Kopi sisa source code dan lakukan kompilasi TypeScript
+# Salin seluruh kode sumber
 COPY . .
-RUN npx tsc
 
-# Stage 2: Production
-FROM node:18-alpine AS production
-WORKDIR /app
+# Generate Prisma Client untuk environment Linux
+RUN npx prisma generate
 
-# Hanya install production dependencies agar image ringan
-COPY package*.json ./
-RUN npm install --omit=dev
+# Kompilasi TypeScript ke JavaScript murni
+RUN npm run build
 
-# Kopi hasil build dari stage builder
-COPY --from=builder /app/dist ./dist
-
+# Buka port (sesuaikan dengan port di server.ts Anda)
 EXPOSE 3000
-CMD ["node", "dist/server.js"]
+
+# Eksekusi file yang sudah dikompilasi
+CMD ["npm", "start"]

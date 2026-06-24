@@ -6,6 +6,7 @@ import investmentRouter from './routes/investment';
 import swaggerUi from 'swagger-ui-express';
 import YAML from 'yamljs';
 import path from 'path';
+import cors from 'cors';
 
 const app = express();
 const swaggerDocument = YAML.load(path.resolve(__dirname, '../swagger.yaml'));
@@ -22,6 +23,7 @@ const authLimiter = rateLimit({
   skip: () => process.env.NODE_ENV === 'test'
 });
 
+app.use(cors());
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 app.use(express.json());
 

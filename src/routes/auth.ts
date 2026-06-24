@@ -5,13 +5,30 @@ import prisma from '../db';
 
 const router = Router();
 
+// ─── Helpers Validasi ──────────────────────────────────────────────────────────
+// Regex email standar RFC 5322 (simplified — menangkap 99.9% kasus nyata)
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MIN_PASSWORD_LENGTH = 8;
+
 // POST /api/auth/register
 router.post('/register', async (req: Request, res: Response): Promise<void> => {
   const { email, password, role } = req.body;
 
-  // Validasi field wajib (Kesalahan #5 — edge case: field kosong)
+  // Validasi field wajib
   if (!email || !password || !role) {
     res.status(400).json({ message: 'Email, password, dan role wajib diisi.' });
+    return;
+  }
+
+  // Validasi format email (BUG-04)
+  if (!EMAIL_REGEX.test(email)) {
+    res.status(400).json({ message: 'Format email tidak valid.' });
+    return;
+  }
+
+  // Validasi panjang password minimum (BUG-03)
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    res.status(400).json({ message: `Password minimal ${MIN_PASSWORD_LENGTH} karakter.` });
     return;
   }
 
@@ -36,7 +53,14 @@ router.post('/register', async (req: Request, res: Response): Promise<void> => {
       data: { email, password: hashedPassword, role },
     });
 
-    res.status(201).json({ id: newUser.id, email: newUser.email, role: newUser.role });
+    // Langsung issue token agar frontend bisa auto-login setelah registrasi
+    const token = jwt.sign(
+      { id: newUser.id, email: newUser.email, role: newUser.role },
+      process.env.JWT_SECRET as string,
+      { expiresIn: '1d' }
+    );
+
+    res.status(201).json({ token, user: { id: newUser.id, email: newUser.email, role: newUser.role } });
   } catch (error) {
     res.status(500).json({ message: 'Terjadi kesalahan server.' });
   }
@@ -46,9 +70,21 @@ router.post('/register', async (req: Request, res: Response): Promise<void> => {
 router.post('/login', async (req: Request, res: Response): Promise<void> => {
   const { email, password } = req.body;
 
-  // Validasi field wajib (Kesalahan #5 — edge case: field kosong)
+  // Validasi field wajib
   if (!email || !password) {
     res.status(400).json({ message: 'Email dan password wajib diisi.' });
+    return;
+  }
+
+  // Validasi format email (BUG-04) — tolak sebelum hit database
+  if (!EMAIL_REGEX.test(email)) {
+    res.status(400).json({ message: 'Format email tidak valid.' });
+    return;
+  }
+
+  // Validasi panjang password (BUG-03) — early reject sebelum bcrypt compare
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    res.status(400).json({ message: `Password minimal ${MIN_PASSWORD_LENGTH} karakter.` });
     return;
   }
 
@@ -68,7 +104,7 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
       { expiresIn: '1d' }
     );
 
-    res.status(200).json({ token });
+    res.status(200).json({ token, user: { id: user.id, email: user.email, role: user.role } });
   } catch (error) {
     res.status(500).json({ message: 'Terjadi kesalahan server.' });
   }

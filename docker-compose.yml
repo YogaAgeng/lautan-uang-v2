@@ -1,4 +1,4 @@
-version: '3.8'
+# version dihapus — sudah obsolete di Docker Compose terbaru (BUG-11)
 
 services:
   api:
@@ -7,13 +7,21 @@ services:
       dockerfile: Dockerfile
     ports:
       - "3000:3000"
+    # env_file membaca SEMUA variabel dari .env terlebih dahulu (BUG-02 fix)
+    # Blok 'environment' di bawah akan OVERRIDE nilai dari env_file
+    # sehingga variabel Docker-spesifik (seperti DATABASE_URL dengan hostname 'db')
+    # tetap digunakan di dalam container.
+    env_file:
+      - .env
     depends_on:
       - db
       - cache
     environment:
       - PORT=3000
+      # Override DATABASE_URL agar gunakan hostname Docker internal 'db', bukan localhost
       - DATABASE_URL=postgres://postgres:password123@db:5432/lautanuang
       - REDIS_URL=redis://cache:6379
+      # JWT_SECRET sudah terbaca dari env_file di atas — baris ini redundant tapi aman
       - JWT_SECRET=${JWT_SECRET}
 
   db:

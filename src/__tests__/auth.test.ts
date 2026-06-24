@@ -24,8 +24,9 @@ describe('Auth API (Register & Login)', () => {
         role: 'INVESTOR'
       });
     expect(res.status).toBe(201);
-    expect(res.body).toHaveProperty('id');
-    expect(res.body.email).toBe('investor@test.com');
+    expect(res.body).toHaveProperty('token');
+    expect(res.body).toHaveProperty('user');
+    expect(res.body.user.email).toBe('investor@test.com');
   });
 
   it('seharusnya berhasil login dan mengembalikan JWT token', async () => {
