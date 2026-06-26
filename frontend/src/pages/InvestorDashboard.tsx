@@ -1,4 +1,28 @@
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import api from '../api/axios';
+
+/* ─── Types ────────────────────────────────────────────── */
+interface Campaign {
+  id: number;
+  title: string;
+  description: string;
+  targetAmount: string;
+  currentAmount: string;
+  status: 'ACTIVE' | 'FUNDED' | 'CLOSED';
+  userId: number;
+  createdAt: string;
+  user?: { id: number; email: string };
+}
+
+interface Transaction {
+  id: number;
+  amount: string;
+  campaignId: number;
+  createdAt: string;
+  user?: { email: string; role: string };
+  campaign?: { title: string };
+}
 
 /* ─── Icons ───────────────────────────────────────────── */
 const IconTrendUp = () => (
@@ -64,6 +88,32 @@ const IconStar = () => (
     <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
   </svg>
 );
+const IconX = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+    <line x1="18" y1="6" x2="6" y2="18"/>
+    <line x1="6" y1="6" x2="18" y2="18"/>
+  </svg>
+);
+
+/* ─── Helpers ──────────────────────────────────────────── */
+const formatRupiah = (val: string | number) => {
+  const num = typeof val === 'string' ? parseInt(val, 10) : val;
+  if (isNaN(num)) return 'Rp 0';
+  if (num >= 1_000_000_000) return `Rp ${(num / 1_000_000_000).toFixed(1)} M`;
+  if (num >= 1_000_000) return `Rp ${(num / 1_000_000).toFixed(1)} Jt`;
+  if (num >= 1_000) return `Rp ${(num / 1_000).toFixed(0)} Rb`;
+  return `Rp ${num.toLocaleString('id-ID')}`;
+};
+
+const timeAgo = (dateStr: string) => {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return `${mins} menit lalu`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours} jam lalu`;
+  const days = Math.floor(hours / 24);
+  return `${days} hari lalu`;
+};
 
 /* ─── Stat Card ────────────────────────────────────────── */
 const StatCard = ({
@@ -87,44 +137,51 @@ const StatCard = ({
 
 /* ─── Opportunity Card ─────────────────────────────────── */
 const OpportunityCard = ({
-  name, owner, target, collected, roi, category, delay,
+  campaign,
+  onInvest,
+  delay,
 }: {
-  name: string; owner: string; target: string; collected: string; roi: string; category: string; delay: string;
+  campaign: Campaign;
+  onInvest: (c: Campaign) => void;
+  delay: string;
 }) => {
-  const pct = Math.round((parseFloat(collected.replace(/[^0-9]/g, '')) / parseFloat(target.replace(/[^0-9]/g, ''))) * 100);
-  const catColors: Record<string, string> = {
-    'Budidaya': '#10b981',
-    'Tangkap': '#06b6d4',
-    'Pengolahan': '#f59e0b',
-    'Infrastruktur': '#a78bfa',
-  };
-  const color = catColors[category] || '#06b6d4';
+  const target = parseInt(campaign.targetAmount, 10);
+  const current = parseInt(campaign.currentAmount, 10);
+  const pct = target > 0 ? Math.min(100, Math.round((current / target) * 100)) : 0;
+  const color = '#06b6d4';
 
   return (
-    <div className={`glass rounded-2xl p-5 transition-all duration-300 cursor-pointer group animate-fadeInUp ${delay}`}
+    <div
+      className={`glass rounded-2xl p-5 transition-all duration-300 animate-fadeInUp ${delay}`}
       style={{ border: '1px solid rgba(255,255,255,0.07)' }}
       onMouseOver={e => Object.assign((e.currentTarget as HTMLElement).style, { borderColor: `${color}40`, transform: 'translateY(-4px)', boxShadow: `0 12px 40px ${color}18` })}
       onMouseOut={e => Object.assign((e.currentTarget as HTMLElement).style, { borderColor: 'rgba(255,255,255,0.07)', transform: 'translateY(0)', boxShadow: 'none' })}
     >
       <div className="flex items-start justify-between mb-3">
-        <div>
-          <span className="text-xs px-2 py-0.5 rounded-full mb-2 inline-block" style={{ background: `${color}15`, color }}>{category}</span>
-          <h4 className="text-white font-semibold text-sm leading-snug">{name}</h4>
-          <p className="text-slate-400 text-xs mt-0.5">oleh {owner}</p>
+        <div className="flex-1 min-w-0 pr-2">
+          <span className="text-xs px-2 py-0.5 rounded-full mb-2 inline-block" style={{ background: `${color}15`, color }}>Perikanan</span>
+          <h4 className="text-white font-semibold text-sm leading-snug truncate">{campaign.title}</h4>
+          <p className="text-slate-400 text-xs mt-0.5 truncate">oleh {campaign.user?.email?.split('@')[0] || 'Nelayan'}</p>
         </div>
         <div className="text-right flex-shrink-0 ml-3">
-          <p className="text-xs text-slate-400">Est. ROI</p>
-          <p className="font-bold text-lg" style={{ color, fontFamily: 'Poppins, sans-serif' }}>{roi}</p>
+          <p className="text-xs text-slate-400">Sisa Dana</p>
+          <p className="font-bold text-sm" style={{ color, fontFamily: 'Poppins, sans-serif' }}>
+            {formatRupiah(target - current)}
+          </p>
         </div>
       </div>
       <div className="flex justify-between text-xs text-slate-400 mb-1.5">
-        <span>Terkumpul: <span className="text-white font-medium">{collected}</span></span>
-        <span>Target: {target}</span>
+        <span>Terkumpul: <span className="text-white font-medium">{formatRupiah(current)}</span></span>
+        <span>Target: {formatRupiah(target)}</span>
       </div>
       <div className="w-full h-1.5 rounded-full mb-3" style={{ background: 'rgba(255,255,255,0.08)' }}>
         <div className="h-full rounded-full" style={{ width: `${pct}%`, background: `linear-gradient(90deg, ${color}, ${color}cc)` }}/>
       </div>
-      <button className="w-full py-2 rounded-xl text-xs font-semibold transition-all duration-300" style={{ background: `${color}15`, color, border: `1px solid ${color}30` }}
+      <button
+        id={`btn-invest-${campaign.id}`}
+        onClick={() => onInvest(campaign)}
+        className="w-full py-2 rounded-xl text-xs font-semibold transition-all duration-300"
+        style={{ background: `${color}15`, color, border: `1px solid ${color}30` }}
         onMouseOver={e => Object.assign((e.currentTarget as HTMLElement).style, { background: `${color}25` })}
         onMouseOut={e => Object.assign((e.currentTarget as HTMLElement).style, { background: `${color}15` })}
       >
@@ -134,21 +191,211 @@ const OpportunityCard = ({
   );
 };
 
+/* ─── Invest Modal ─────────────────────────────────────── */
+const InvestModal = ({
+  campaign,
+  onClose,
+  onSuccess,
+}: {
+  campaign: Campaign;
+  onClose: () => void;
+  onSuccess: () => void;
+}) => {
+  const [amount, setAmount] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
+
+  const remaining = parseInt(campaign.targetAmount, 10) - parseInt(campaign.currentAmount, 10);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      await api.post(`/campaigns/${campaign.id}/invest`, { amount: Number(amount) });
+      setSuccess(true);
+      setTimeout(() => {
+        onSuccess();
+      }, 1500);
+    } catch (err: any) {
+      const status = err.response?.status;
+      if (status === 409) {
+        setError('⚡ Terjadi tabrakan transaksi (Race Condition). Silakan coba lagi dalam beberapa detik.');
+      } else {
+        setError(err.response?.data?.message || 'Terjadi kesalahan server.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(6px)' }}>
+      <div className="w-full max-w-md rounded-2xl p-6 animate-fadeInUp" style={{ background: 'rgba(4,18,36,0.95)', border: '1px solid rgba(245,158,11,0.25)' }}>
+        {/* Header */}
+        <div className="flex items-center justify-between mb-5">
+          <h3 className="text-white font-bold text-lg" style={{ fontFamily: 'Poppins, sans-serif' }}>💼 Investasi Sekarang</h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors"><IconX /></button>
+        </div>
+
+        {/* Campaign info */}
+        <div className="rounded-xl p-4 mb-5" style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.15)' }}>
+          <p className="text-white font-semibold text-sm mb-1 truncate">{campaign.title}</p>
+          <div className="flex justify-between text-xs text-slate-400 mt-1">
+            <span>Terkumpul: <span className="text-white">{formatRupiah(campaign.currentAmount)}</span></span>
+            <span>Sisa: <span style={{ color: '#f59e0b' }}>{formatRupiah(remaining)}</span></span>
+          </div>
+          <div className="w-full h-1.5 rounded-full mt-2" style={{ background: 'rgba(255,255,255,0.08)' }}>
+            <div className="h-full rounded-full" style={{
+              width: `${Math.min(100, Math.round((parseInt(campaign.currentAmount) / parseInt(campaign.targetAmount)) * 100))}%`,
+              background: 'linear-gradient(90deg, #d97706, #f59e0b)',
+            }}/>
+          </div>
+        </div>
+
+        {/* Success state */}
+        {success ? (
+          <div className="text-center py-6">
+            <div className="text-5xl mb-3">✅</div>
+            <p className="text-white font-semibold">Investasi Berhasil!</p>
+            <p className="text-slate-400 text-sm mt-1">Dana Anda telah disalurkan ke kampanye ini.</p>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {error && (
+              <div className="px-4 py-3 rounded-xl text-sm" style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#fca5a5' }}>
+                {error}
+              </div>
+            )}
+
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-1.5">Jumlah Investasi (IDR)</label>
+              <input
+                id="input-invest-amount"
+                type="number"
+                value={amount}
+                onChange={e => setAmount(e.target.value)}
+                required
+                min={1}
+                max={remaining}
+                placeholder={`Maks. ${formatRupiah(remaining)}`}
+                className="w-full px-4 py-2.5 rounded-xl text-sm text-white placeholder-slate-500 outline-none transition-all"
+                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
+                onFocus={e => (e.currentTarget.style.borderColor = '#f59e0b')}
+                onBlur={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')}
+              />
+              {amount && !isNaN(Number(amount)) && (
+                <p className="mt-1 text-xs" style={{ color: '#f59e0b' }}>{formatRupiah(amount)}</p>
+              )}
+            </div>
+
+            {/* Quick amount buttons */}
+            <div className="flex gap-2">
+              {[100_000, 500_000, 1_000_000].map(preset => (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => setAmount(String(Math.min(preset, remaining)))}
+                  className="flex-1 py-1.5 rounded-lg text-xs font-medium transition-all"
+                  style={{ background: 'rgba(245,158,11,0.1)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.2)' }}
+                  onMouseOver={e => Object.assign((e.currentTarget as HTMLElement).style, { background: 'rgba(245,158,11,0.2)' })}
+                  onMouseOut={e => Object.assign((e.currentTarget as HTMLElement).style, { background: 'rgba(245,158,11,0.1)' })}
+                >
+                  {formatRupiah(preset)}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex gap-3 pt-1">
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-1 py-2.5 rounded-xl text-sm font-medium text-slate-400 transition-all"
+                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}
+              >
+                Batal
+              </button>
+              <button
+                id="btn-confirm-invest"
+                type="submit"
+                disabled={loading || !amount}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-60"
+                style={{ background: 'linear-gradient(135deg, #d97706, #f59e0b)', boxShadow: '0 4px 15px rgba(245,158,11,0.3)' }}
+              >
+                {loading ? 'Memproses...' : 'Konfirmasi Investasi'}
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+};
+
 /* ─── Investor Dashboard ───────────────────────────────── */
 export default function InvestorDashboard() {
   const navigate = useNavigate();
   const email = localStorage.getItem('email') || 'investor@lautanuang.id';
+  const userId = parseInt(localStorage.getItem('userId') || '0', 10);
   const firstName = email.split('@')[0].split('.')[0];
   const displayName = firstName.charAt(0).toUpperCase() + firstName.slice(1);
 
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [myTransactions, setMyTransactions] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState('');
+  const [investTarget, setInvestTarget] = useState<Campaign | null>(null);
+
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('role');
+    localStorage.clear();
     navigate('/auth');
   };
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Selamat pagi' : hour < 17 ? 'Selamat siang' : 'Selamat malam';
+
+  /* Fetch campaigns + transactions */
+  const fetchData = async () => {
+    setLoading(true);
+    setFetchError('');
+    try {
+      const res = await api.get<Campaign[]>('/campaigns');
+      setCampaigns(res.data);
+
+      // Fetch transactions dari semua kampanye yang pernah diinvest (ambil beberapa kampanye)
+      // Kita kumpulkan semua transaksi dari semua kampanye, lalu filter yang milik investor ini
+      const txPromises = res.data.slice(0, 10).map(c =>
+        api.get<Transaction[]>(`/campaigns/${c.id}/transactions`)
+          .then(r => r.data.map(tx => ({ ...tx, campaign: { title: c.title } })))
+          .catch(() => [] as Transaction[])
+      );
+      const allTxArrays = await Promise.all(txPromises);
+      const allTx = allTxArrays.flat();
+      // Filter transaksi milik user ini (berdasarkan userId yang disimpan — bandingkan via endpoint)
+      // Karena backend mengembalikan user.email pada transaksi, filter by email
+      const mine = allTx.filter(tx => tx.user?.email === email);
+      setMyTransactions(mine.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+    } catch (err: any) {
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        handleLogout();
+      } else {
+        setFetchError('Gagal memuat data. Pastikan server berjalan.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  /* Derived stats */
+  const totalInvested = myTransactions.reduce((sum, tx) => sum + parseInt(tx.amount, 10), 0);
+  const activeInvestments = campaigns.filter(c =>
+    myTransactions.some(tx => tx.campaignId === c.id) && c.status === 'ACTIVE'
+  ).length;
 
   const navItems = [
     { icon: <IconHome />, label: 'Dashboard', active: true },
@@ -160,12 +407,7 @@ export default function InvestorDashboard() {
     { icon: <IconStar />, label: 'Proyek Unggulan' },
   ];
 
-  const opportunities = [
-    { name: 'Budidaya Lobster Premium Lombok', owner: 'Pak Ahmad Suryadi', target: 'Rp75.000.000', collected: 'Rp52.000.000', roi: '18%', category: 'Budidaya', delay: 'delay-100' },
-    { name: 'Kapal Penangkap Tuna Samudra Biru', owner: 'Koperasi Nelayan Bima', target: 'Rp120.000.000', collected: 'Rp88.000.000', roi: '22%', category: 'Tangkap', delay: 'delay-200' },
-    { name: 'Pabrik Pengolahan Ikan Teri NTB', owner: 'CV Mina Bahari', target: 'Rp200.000.000', collected: 'Rp95.000.000', roi: '15%', category: 'Pengolahan', delay: 'delay-300' },
-    { name: 'Cold Storage Pelabuhan Kendari', owner: 'PT Laut Sejahtera', target: 'Rp350.000.000', collected: 'Rp210.000.000', roi: '12%', category: 'Infrastruktur', delay: 'delay-400' },
-  ];
+  const delays = ['delay-100', 'delay-200', 'delay-300', 'delay-400'];
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: 'linear-gradient(135deg, #020b18 0%, #0a0e1a 100%)' }}>
@@ -227,7 +469,7 @@ export default function InvestorDashboard() {
           <div className="flex items-center gap-3">
             <button className="relative w-9 h-9 rounded-xl flex items-center justify-center glass text-slate-400 hover:text-white transition-colors">
               <IconBell />
-              <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full" style={{ background: '#f59e0b' }}/>
+              {campaigns.length > 0 && <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full" style={{ background: '#f59e0b' }}/>}
             </button>
             <button id="btn-investor-logout" onClick={handleLogout} className="flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-xl transition-all" style={{ background: 'rgba(239,68,68,0.12)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.2)' }}
               onMouseOver={e => Object.assign((e.currentTarget as HTMLElement).style, { background: 'rgba(239,68,68,0.2)' })}
@@ -248,18 +490,22 @@ export default function InvestorDashboard() {
             </div>
             <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div>
-                <p className="text-cyan-300 text-sm font-medium mb-1">Total Portofolio</p>
-                <p className="text-white text-4xl font-bold" style={{ fontFamily: 'Poppins, sans-serif' }}>Rp 248.500.000</p>
-                <p className="text-slate-300 text-sm mt-1">↑ <span style={{ color: '#10b981' }}>+8.3%</span> dari bulan lalu</p>
+                <p className="text-cyan-300 text-sm font-medium mb-1">Total Investasi Saya</p>
+                <p className="text-white text-4xl font-bold" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                  {loading ? '...' : formatRupiah(totalInvested)}
+                </p>
+                <p className="text-slate-300 text-sm mt-1">
+                  {myTransactions.length} transaksi tercatat
+                </p>
               </div>
               <div className="flex gap-6">
                 <div>
-                  <p className="text-slate-400 text-xs mb-1">Keuntungan Total</p>
-                  <p className="font-bold text-lg" style={{ color: '#10b981', fontFamily: 'Poppins, sans-serif' }}>Rp 32,1 Jt</p>
+                  <p className="text-slate-400 text-xs mb-1">Proyek Aktif</p>
+                  <p className="font-bold text-lg text-white" style={{ fontFamily: 'Poppins, sans-serif' }}>{activeInvestments} Proyek</p>
                 </div>
                 <div>
-                  <p className="text-slate-400 text-xs mb-1">Proyek Aktif</p>
-                  <p className="font-bold text-lg text-white" style={{ fontFamily: 'Poppins, sans-serif' }}>7 Proyek</p>
+                  <p className="text-slate-400 text-xs mb-1">Kampanye Tersedia</p>
+                  <p className="font-bold text-lg text-white" style={{ fontFamily: 'Poppins, sans-serif' }}>{campaigns.length} Proyek</p>
                 </div>
               </div>
             </div>
@@ -269,10 +515,10 @@ export default function InvestorDashboard() {
           <section>
             <h2 className="text-white font-semibold mb-4 text-lg" style={{ fontFamily: 'Poppins, sans-serif' }}>Ringkasan Investasi</h2>
             <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-              <StatCard icon={<IconWallet />} label="Saldo Tersedia" value="Rp 15,5 Jt" sub="Siap investasi" color="#f59e0b" delay="delay-100" />
-              <StatCard icon={<IconTrendUp />} label="Return Bulan Ini" value="+Rp 4,8 Jt" sub="↑ 18.2% p.a." color="#10b981" delay="delay-200" />
-              <StatCard icon={<span className="text-xl">🏆</span>} label="Proyek Dibiayai" value="12 Total" sub="7 aktif" color="#06b6d4" delay="delay-300" />
-              <StatCard icon={<IconPieChart />} label="Rata-rata ROI" value="17.4%" sub="Per tahun" color="#a78bfa" delay="delay-400" />
+              <StatCard icon={<IconWallet />} label="Total Diinvestasikan" value={loading ? '...' : formatRupiah(totalInvested)} sub="Semua waktu" color="#f59e0b" delay="delay-100" />
+              <StatCard icon={<IconTrendUp />} label="Transaksi Berhasil" value={String(myTransactions.length)} sub="Transaksi" color="#10b981" delay="delay-200" />
+              <StatCard icon={<span className="text-xl">🏆</span>} label="Kampanye Didanai" value={`${activeInvestments} Aktif`} sub="Dari investasi saya" color="#06b6d4" delay="delay-300" />
+              <StatCard icon={<IconPieChart />} label="Kampanye Tersedia" value={String(campaigns.length)} sub="Siap diinvestasi" color="#a78bfa" delay="delay-400" />
             </div>
           </section>
 
@@ -280,39 +526,93 @@ export default function InvestorDashboard() {
           <section>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-white font-semibold text-lg" style={{ fontFamily: 'Poppins, sans-serif' }}>Peluang Investasi</h2>
-              <button className="text-sm px-4 py-2 rounded-xl font-medium btn-gold">Lihat Semua →</button>
+              <button onClick={fetchData} className="text-sm px-4 py-2 rounded-xl font-medium btn-gold">Refresh ↻</button>
             </div>
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-4">
-              {opportunities.map((op) => <OpportunityCard key={op.name} {...op} />)}
-            </div>
+
+            {/* Loading */}
+            {loading && (
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-4">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className="glass rounded-2xl p-5 animate-pulse" style={{ border: '1px solid rgba(255,255,255,0.07)', height: '160px' }}>
+                    <div className="h-3 rounded w-1/3 mb-3" style={{ background: 'rgba(255,255,255,0.06)' }}/>
+                    <div className="h-4 rounded w-3/4 mb-2" style={{ background: 'rgba(255,255,255,0.06)' }}/>
+                    <div className="h-3 rounded w-full mb-4" style={{ background: 'rgba(255,255,255,0.04)' }}/>
+                    <div className="h-1.5 rounded-full w-full" style={{ background: 'rgba(255,255,255,0.06)' }}/>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Error */}
+            {!loading && fetchError && (
+              <div className="rounded-2xl p-6 text-center" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}>
+                <p className="text-red-400 text-sm mb-3">⚠️ {fetchError}</p>
+                <button onClick={fetchData} className="text-xs px-4 py-2 rounded-xl font-medium" style={{ background: 'rgba(239,68,68,0.15)', color: '#f87171' }}>
+                  Coba Lagi
+                </button>
+              </div>
+            )}
+
+            {/* Empty */}
+            {!loading && !fetchError && campaigns.length === 0 && (
+              <div className="glass rounded-2xl p-10 text-center" style={{ border: '1px solid rgba(255,255,255,0.07)' }}>
+                <div className="text-5xl mb-4">🎣</div>
+                <p className="text-white font-semibold mb-2">Belum ada kampanye tersedia</p>
+                <p className="text-slate-400 text-sm">Kampanye dari nelayan akan muncul di sini.</p>
+              </div>
+            )}
+
+            {/* Campaign cards */}
+            {!loading && campaigns.length > 0 && (
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-4">
+                {campaigns.map((c, i) => (
+                  <OpportunityCard
+                    key={c.id}
+                    campaign={c}
+                    onInvest={setInvestTarget}
+                    delay={delays[i % delays.length]}
+                  />
+                ))}
+              </div>
+            )}
           </section>
 
           {/* Recent transactions */}
           <section>
-            <h2 className="text-white font-semibold mb-4 text-lg" style={{ fontFamily: 'Poppins, sans-serif' }}>Transaksi Terbaru</h2>
+            <h2 className="text-white font-semibold mb-4 text-lg" style={{ fontFamily: 'Poppins, sans-serif' }}>Transaksi Saya</h2>
             <div className="glass rounded-2xl divide-y" style={{ border: '1px solid rgba(255,255,255,0.06)' }}>
-              {[
-                { icon: '📤', text: 'Investasi — Budidaya Lobster Lombok', amount: '-Rp 15.000.000', time: '1 jam lalu', color: '#f59e0b', plus: false },
-                { icon: '📥', text: 'Return — Kapal Tuna Sulawesi Bulan 3', amount: '+Rp 2.700.000', time: '2 hari lalu', color: '#10b981', plus: true },
-                { icon: '📤', text: 'Investasi — Pabrik Pengolahan Teri', amount: '-Rp 25.000.000', time: '5 hari lalu', color: '#f59e0b', plus: false },
-                { icon: '📥', text: 'Return — Cold Storage Kendari Bulan 2', amount: '+Rp 3.500.000', time: '1 minggu lalu', color: '#10b981', plus: true },
-              ].map((tx, i) => (
-                <div key={i} className="flex items-center gap-4 px-5 py-4">
-                  <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${tx.color}15` }}>
-                    <span>{tx.icon}</span>
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-white text-sm">{tx.text}</p>
-                    <p className="text-slate-500 text-xs mt-0.5">{tx.time}</p>
-                  </div>
-                  <p className="font-semibold text-sm" style={{ color: tx.color }}>{tx.amount}</p>
+              {myTransactions.length === 0 ? (
+                <div className="px-5 py-10 text-center">
+                  <p className="text-slate-400 text-sm">Belum ada transaksi. Mulai investasi sekarang!</p>
                 </div>
-              ))}
+              ) : (
+                myTransactions.slice(0, 5).map((tx) => (
+                  <div key={tx.id} className="flex items-center gap-4 px-5 py-4">
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(245,158,11,0.15)' }}>
+                      <span>📤</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white text-sm truncate">Investasi — {tx.campaign?.title || `Kampanye #${tx.campaignId}`}</p>
+                      <p className="text-slate-500 text-xs mt-0.5">{timeAgo(tx.createdAt)}</p>
+                    </div>
+                    <p className="font-semibold text-sm" style={{ color: '#f59e0b' }}>-{formatRupiah(tx.amount)}</p>
+                  </div>
+                ))
+              )}
             </div>
           </section>
 
         </div>
       </main>
+
+      {/* ── Invest Modal ── */}
+      {investTarget && (
+        <InvestModal
+          campaign={investTarget}
+          onClose={() => setInvestTarget(null)}
+          onSuccess={() => { setInvestTarget(null); fetchData(); }}
+        />
+      )}
     </div>
   );
 }

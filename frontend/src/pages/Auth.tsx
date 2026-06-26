@@ -111,6 +111,7 @@ export default function Auth() {
         localStorage.setItem('token', response.data.token);
         localStorage.setItem('role', response.data.user.role);
         localStorage.setItem('email', response.data.user.email); // BUG-05 fix: simpan email
+        localStorage.setItem('userId', String(response.data.user.id)); // simpan userId untuk filter kampanye
 
         if (response.data.user.role === 'NELAYAN') {
           navigate('/nelayan');

@@ -1,4 +1,18 @@
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import api from '../api/axios';
+
+/* ─── Types ────────────────────────────────────────────── */
+interface Campaign {
+  id: number;
+  title: string;
+  description: string;
+  targetAmount: string;
+  currentAmount: string;
+  status: 'ACTIVE' | 'FUNDED' | 'CLOSED';
+  userId: number;
+  createdAt: string;
+}
 
 /* ─── Icons ───────────────────────────────────────────── */
 const IconAnchor = () => (
@@ -61,6 +75,54 @@ const IconBell = () => (
     <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
   </svg>
 );
+const IconEdit = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+  </svg>
+);
+const IconTrash = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+    <polyline points="3 6 5 6 21 6"/>
+    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+    <path d="M10 11v6"/>
+    <path d="M14 11v6"/>
+    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+  </svg>
+);
+const IconPlus = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+    <line x1="12" y1="5" x2="12" y2="19"/>
+    <line x1="5" y1="12" x2="19" y2="12"/>
+  </svg>
+);
+const IconX = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+    <line x1="18" y1="6" x2="6" y2="18"/>
+    <line x1="6" y1="6" x2="18" y2="18"/>
+  </svg>
+);
+
+/* ─── Helpers ──────────────────────────────────────────── */
+const formatRupiah = (val: string | number) => {
+  const num = typeof val === 'string' ? parseInt(val, 10) : val;
+  if (isNaN(num)) return 'Rp 0';
+  if (num >= 1_000_000_000) return `Rp ${(num / 1_000_000_000).toFixed(1)} M`;
+  if (num >= 1_000_000) return `Rp ${(num / 1_000_000).toFixed(1)} Jt`;
+  if (num >= 1_000) return `Rp ${(num / 1_000).toFixed(0)} Rb`;
+  return `Rp ${num.toLocaleString('id-ID')}`;
+};
+
+const statusColor: Record<string, string> = {
+  ACTIVE: '#10b981',
+  FUNDED: '#f59e0b',
+  CLOSED: '#64748b',
+};
+const statusLabel: Record<string, string> = {
+  ACTIVE: 'Aktif',
+  FUNDED: 'Terpenuhi',
+  CLOSED: 'Ditutup',
+};
 
 /* ─── Stat Card ────────────────────────────────────────── */
 const StatCard = ({
@@ -84,28 +146,292 @@ const StatCard = ({
 
 /* ─── Project Card ─────────────────────────────────────── */
 const ProjectCard = ({
-  name, target, collected, status, color, delay,
+  campaign, onEdit, onDelete, delay,
 }: {
-  name: string; target: string; collected: string; status: string; color: string; delay: string;
+  campaign: Campaign;
+  onEdit: (c: Campaign) => void;
+  onDelete: (c: Campaign) => void;
+  delay: string;
 }) => {
-  const pct = Math.round((parseFloat(collected.replace(/[^0-9.]/g, '')) / parseFloat(target.replace(/[^0-9.]/g, ''))) * 100);
+  const target = parseInt(campaign.targetAmount, 10);
+  const current = parseInt(campaign.currentAmount, 10);
+  const pct = target > 0 ? Math.min(100, Math.round((current / target) * 100)) : 0;
+  const color = statusColor[campaign.status] || '#10b981';
+
   return (
-    <div className={`glass rounded-2xl p-5 hover:border-opacity-40 transition-all duration-300 animate-fadeInUp ${delay}`} style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
-      <div className="flex items-center justify-between mb-3">
-        <div>
-          <h4 className="text-white font-semibold text-sm">{name}</h4>
-          <p className="text-slate-400 text-xs mt-0.5">Target: {target}</p>
+    <div
+      className={`glass rounded-2xl p-5 transition-all duration-300 animate-fadeInUp ${delay}`}
+      style={{ border: '1px solid rgba(255,255,255,0.08)' }}
+    >
+      <div className="flex items-start justify-between mb-3">
+        <div className="flex-1 min-w-0 pr-2">
+          <h4 className="text-white font-semibold text-sm truncate">{campaign.title}</h4>
+          <p className="text-slate-400 text-xs mt-0.5 truncate">{campaign.description}</p>
+          <p className="text-slate-500 text-xs mt-0.5">Target: {formatRupiah(campaign.targetAmount)}</p>
         </div>
-        <span className="text-xs px-3 py-1 rounded-full font-medium" style={{ background: `${color}15`, color }}>
-          {status}
-        </span>
+        <div className="flex flex-col items-end gap-2 flex-shrink-0">
+          <span className="text-xs px-2.5 py-1 rounded-full font-medium" style={{ background: `${color}15`, color }}>
+            {statusLabel[campaign.status]}
+          </span>
+          {/* Edit & Delete buttons — hanya tampil jika masih ACTIVE */}
+          {campaign.status === 'ACTIVE' && (
+            <div className="flex gap-1.5">
+              <button
+                id={`btn-edit-campaign-${campaign.id}`}
+                onClick={() => onEdit(campaign)}
+                className="w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-200"
+                style={{ background: 'rgba(6,182,212,0.12)', color: '#06b6d4', border: '1px solid rgba(6,182,212,0.2)' }}
+                onMouseOver={e => Object.assign((e.currentTarget as HTMLElement).style, { background: 'rgba(6,182,212,0.25)' })}
+                onMouseOut={e => Object.assign((e.currentTarget as HTMLElement).style, { background: 'rgba(6,182,212,0.12)' })}
+                title="Edit kampanye"
+              >
+                <IconEdit />
+              </button>
+              <button
+                id={`btn-delete-campaign-${campaign.id}`}
+                onClick={() => onDelete(campaign)}
+                className="w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-200"
+                style={{ background: 'rgba(239,68,68,0.12)', color: '#f87171', border: '1px solid rgba(239,68,68,0.2)' }}
+                onMouseOver={e => Object.assign((e.currentTarget as HTMLElement).style, { background: 'rgba(239,68,68,0.25)' })}
+                onMouseOut={e => Object.assign((e.currentTarget as HTMLElement).style, { background: 'rgba(239,68,68,0.12)' })}
+                title="Hapus kampanye"
+              >
+                <IconTrash />
+              </button>
+            </div>
+          )}
+        </div>
       </div>
       <div className="w-full h-1.5 rounded-full mb-2" style={{ background: 'rgba(255,255,255,0.08)' }}>
         <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, background: `linear-gradient(90deg, ${color}, ${color}cc)` }}/>
       </div>
       <div className="flex justify-between text-xs">
-        <span style={{ color }}>Terkumpul: {collected}</span>
+        <span style={{ color }}>Terkumpul: {formatRupiah(campaign.currentAmount)}</span>
         <span className="text-slate-400">{pct}%</span>
+      </div>
+    </div>
+  );
+};
+
+/* ─── Campaign Form Modal ──────────────────────────────── */
+const CampaignModal = ({
+  mode,
+  initial,
+  onClose,
+  onSuccess,
+}: {
+  mode: 'create' | 'edit';
+  initial?: Campaign;
+  onClose: () => void;
+  onSuccess: () => void;
+}) => {
+  const [title, setTitle] = useState(initial?.title || '');
+  const [description, setDescription] = useState(initial?.description || '');
+  const [targetAmount, setTargetAmount] = useState(initial?.targetAmount || '');
+  const [status, setStatus] = useState(initial?.status || 'ACTIVE');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      if (mode === 'create') {
+        await api.post('/campaigns', { title, description, targetAmount: Number(targetAmount) });
+      } else {
+        await api.put(`/campaigns/${initial!.id}`, { title, description, targetAmount: Number(targetAmount), status });
+      }
+      onSuccess();
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Terjadi kesalahan server.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(6px)' }}>
+      <div className="w-full max-w-md rounded-2xl p-6 animate-fadeInUp" style={{ background: 'rgba(4,18,36,0.95)', border: '1px solid rgba(16,185,129,0.25)' }}>
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-white font-bold text-lg" style={{ fontFamily: 'Poppins, sans-serif' }}>
+            {mode === 'create' ? '🎣 Ajukan Proyek Baru' : '✏️ Edit Kampanye'}
+          </h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors">
+            <IconX />
+          </button>
+        </div>
+
+        {error && (
+          <div className="mb-4 px-4 py-3 rounded-xl text-sm" style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#fca5a5' }}>
+            ⚠️ {error}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Title */}
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-1.5">Nama Proyek</label>
+            <input
+              id="input-campaign-title"
+              type="text"
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              required
+              placeholder="contoh: Pengadaan Kapal Motor 40PK"
+              className="w-full px-4 py-2.5 rounded-xl text-sm text-white placeholder-slate-500 outline-none transition-all"
+              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
+              onFocus={e => (e.currentTarget.style.borderColor = '#10b981')}
+              onBlur={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')}
+            />
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-1.5">Deskripsi Proyek</label>
+            <textarea
+              id="input-campaign-description"
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              required
+              rows={3}
+              placeholder="Jelaskan tujuan penggunaan dana..."
+              className="w-full px-4 py-2.5 rounded-xl text-sm text-white placeholder-slate-500 outline-none transition-all resize-none"
+              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
+              onFocus={e => (e.currentTarget.style.borderColor = '#10b981')}
+              onBlur={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')}
+            />
+          </div>
+
+          {/* Target Amount */}
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-1.5">Target Dana (IDR)</label>
+            <input
+              id="input-campaign-target"
+              type="number"
+              value={targetAmount}
+              onChange={e => setTargetAmount(e.target.value)}
+              required
+              min={1}
+              placeholder="contoh: 50000000"
+              className="w-full px-4 py-2.5 rounded-xl text-sm text-white placeholder-slate-500 outline-none transition-all"
+              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
+              onFocus={e => (e.currentTarget.style.borderColor = '#10b981')}
+              onBlur={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')}
+            />
+            {targetAmount && !isNaN(Number(targetAmount)) && (
+              <p className="mt-1 text-xs" style={{ color: '#10b981' }}>{formatRupiah(targetAmount)}</p>
+            )}
+          </div>
+
+          {/* Status (edit only) */}
+          {mode === 'edit' && (
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-1.5">Status</label>
+              <select
+                id="select-campaign-status"
+                value={status}
+                onChange={e => setStatus(e.target.value as any)}
+                className="w-full px-4 py-2.5 rounded-xl text-sm text-white outline-none transition-all"
+                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
+              >
+                <option value="ACTIVE" style={{ background: '#0a0e1a' }}>Aktif</option>
+                <option value="FUNDED" style={{ background: '#0a0e1a' }}>Terpenuhi</option>
+                <option value="CLOSED" style={{ background: '#0a0e1a' }}>Ditutup</option>
+              </select>
+            </div>
+          )}
+
+          {/* Buttons */}
+          <div className="flex gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 py-2.5 rounded-xl text-sm font-medium text-slate-400 transition-all"
+              style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}
+            >
+              Batal
+            </button>
+            <button
+              id="btn-submit-campaign"
+              type="submit"
+              disabled={loading}
+              className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-60"
+              style={{ background: 'linear-gradient(135deg, #059669, #10b981)', boxShadow: '0 4px 15px rgba(16,185,129,0.3)' }}
+            >
+              {loading ? 'Menyimpan...' : mode === 'create' ? 'Ajukan Proyek' : 'Simpan Perubahan'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+/* ─── Delete Confirm Modal ─────────────────────────────── */
+const DeleteModal = ({
+  campaign,
+  onClose,
+  onSuccess,
+}: {
+  campaign: Campaign;
+  onClose: () => void;
+  onSuccess: () => void;
+}) => {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleDelete = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      await api.delete(`/campaigns/${campaign.id}`);
+      onSuccess();
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Gagal menghapus kampanye.');
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(6px)' }}>
+      <div className="w-full max-w-sm rounded-2xl p-6 animate-fadeInUp" style={{ background: 'rgba(4,18,36,0.95)', border: '1px solid rgba(239,68,68,0.25)' }}>
+        <div className="text-center mb-5">
+          <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4" style={{ background: 'rgba(239,68,68,0.15)' }}>
+            <IconTrash />
+          </div>
+          <h3 className="text-white font-bold text-lg mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>Hapus Kampanye?</h3>
+          <p className="text-slate-400 text-sm">
+            Kampanye <span className="text-white font-medium">"{campaign.title}"</span> akan dihapus permanen. Tindakan ini tidak dapat dibatalkan.
+          </p>
+        </div>
+
+        {error && (
+          <div className="mb-4 px-4 py-3 rounded-xl text-sm text-center" style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#fca5a5' }}>
+            ⚠️ {error}
+          </div>
+        )}
+
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 py-2.5 rounded-xl text-sm font-medium text-slate-400 transition-all"
+            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}
+          >
+            Batal
+          </button>
+          <button
+            id="btn-confirm-delete-campaign"
+            onClick={handleDelete}
+            disabled={loading}
+            className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-60"
+            style={{ background: 'linear-gradient(135deg, #dc2626, #ef4444)', boxShadow: '0 4px 15px rgba(239,68,68,0.3)' }}
+          >
+            {loading ? 'Menghapus...' : 'Ya, Hapus'}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -115,17 +441,58 @@ const ProjectCard = ({
 export default function NelayanDashboard() {
   const navigate = useNavigate();
   const email = localStorage.getItem('email') || 'nelayan@lautanuang.id';
+  const userId = parseInt(localStorage.getItem('userId') || '0', 10);
   const firstName = email.split('@')[0].split('.')[0];
   const displayName = firstName.charAt(0).toUpperCase() + firstName.slice(1);
 
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState('');
+
+  // Modal state
+  const [showCreate, setShowCreate] = useState(false);
+  const [editTarget, setEditTarget] = useState<Campaign | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Campaign | null>(null);
+
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('role');
+    localStorage.clear();
     navigate('/auth');
   };
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Selamat pagi' : hour < 17 ? 'Selamat siang' : 'Selamat malam';
+
+  /* Fetch kampanye milik nelayan ini */
+  const fetchCampaigns = async () => {
+    setLoading(true);
+    setFetchError('');
+    try {
+      const res = await api.get<Campaign[]>('/campaigns');
+      // Filter hanya kampanye milik user ini
+      const mine = res.data.filter(c => c.userId === userId);
+      setCampaigns(mine);
+    } catch (err: any) {
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        handleLogout();
+      } else {
+        setFetchError('Gagal memuat kampanye. Pastikan server berjalan.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCampaigns();
+  }, []);
+
+  /* Derived stats */
+  const activeCount = campaigns.filter(c => c.status === 'ACTIVE').length;
+  const fundedCount = campaigns.filter(c => c.status === 'FUNDED').length;
+  const totalReceived = campaigns.reduce((sum, c) => sum + parseInt(c.currentAmount, 10), 0);
+  const pendingInstallment = campaigns
+    .filter(c => c.status === 'ACTIVE')
+    .reduce((sum, c) => sum + parseInt(c.currentAmount, 10) * 0.03, 0); // estimasi 3%
 
   const navItems = [
     { icon: <IconHome />, label: 'Dashboard', active: true },
@@ -136,11 +503,7 @@ export default function NelayanDashboard() {
     { icon: <IconStar />, label: 'Reputasi & Rating' },
   ];
 
-  const projects = [
-    { name: 'Budi Daya Udang Vaname — Tambak A', target: 'Rp 50.000.000', collected: 'Rp 38.500.000', status: 'Aktif', color: '#10b981', delay: 'delay-200' },
-    { name: 'Penangkapan Ikan Laut Dalam', target: 'Rp 30.000.000', collected: 'Rp 12.000.000', status: 'Funding', color: '#06b6d4', delay: 'delay-300' },
-    { name: 'Jaring Apung Kerapu', target: 'Rp 20.000.000', collected: 'Rp 20.000.000', status: 'Selesai', color: '#f59e0b', delay: 'delay-400' },
-  ];
+  const delays = ['delay-200', 'delay-300', 'delay-400', 'delay-100', 'delay-200', 'delay-300'];
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: 'linear-gradient(135deg, #020b18 0%, #041224 100%)' }}>
@@ -202,7 +565,7 @@ export default function NelayanDashboard() {
           <div className="flex items-center gap-3">
             <button className="relative w-9 h-9 rounded-xl flex items-center justify-center glass text-slate-400 hover:text-white transition-colors">
               <IconBell />
-              <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full" style={{ background: '#10b981' }}/>
+              {activeCount > 0 && <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full" style={{ background: '#10b981' }}/>}
             </button>
             <button id="btn-nelayan-logout" onClick={handleLogout} className="flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-xl transition-all" style={{ background: 'rgba(239,68,68,0.12)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.2)' }}
               onMouseOver={e => Object.assign((e.currentTarget as HTMLElement).style, { background: 'rgba(239,68,68,0.2)' })}
@@ -220,9 +583,9 @@ export default function NelayanDashboard() {
           <section>
             <h2 className="text-white font-semibold mb-4 text-lg" style={{ fontFamily: 'Poppins, sans-serif' }}>Ringkasan Akun</h2>
             <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-              <StatCard icon={<span className="text-xl">💰</span>} label="Total Modal Diterima" value="Rp 70,5 Jt" sub="↑ 12% bulan ini" color="#10b981" delay="delay-100" />
-              <StatCard icon={<span className="text-xl">🎣</span>} label="Proyek Aktif" value="2 Proyek" sub="1 funding" color="#06b6d4" delay="delay-200" />
-              <StatCard icon={<span className="text-xl">📅</span>} label="Cicilan Berjalan" value="Rp 3,2 Jt" sub="Jatuh tempo 5 hari" color="#f59e0b" delay="delay-300" />
+              <StatCard icon={<span className="text-xl">💰</span>} label="Total Modal Diterima" value={formatRupiah(totalReceived)} sub={`${campaigns.length} kampanye`} color="#10b981" delay="delay-100" />
+              <StatCard icon={<span className="text-xl">🎣</span>} label="Proyek Aktif" value={`${activeCount} Proyek`} sub={`${fundedCount} terpenuhi`} color="#06b6d4" delay="delay-200" />
+              <StatCard icon={<span className="text-xl">📅</span>} label="Est. Cicilan Berjalan" value={formatRupiah(Math.round(pendingInstallment))} sub="Estimasi 3%" color="#f59e0b" delay="delay-300" />
               <StatCard icon={<span className="text-xl">⭐</span>} label="Rating Nelayan" value="4.8 / 5.0" sub="42 ulasan" color="#a78bfa" delay="delay-400" />
             </div>
           </section>
@@ -231,39 +594,116 @@ export default function NelayanDashboard() {
           <section>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-white font-semibold text-lg" style={{ fontFamily: 'Poppins, sans-serif' }}>Proyek Saya</h2>
-              <button className="text-sm px-4 py-2 rounded-xl font-medium btn-emerald">+ Ajukan Proyek Baru</button>
+              <button
+                id="btn-open-create-campaign"
+                onClick={() => setShowCreate(true)}
+                className="flex items-center gap-2 text-sm px-4 py-2 rounded-xl font-medium btn-emerald"
+              >
+                <IconPlus />
+                Ajukan Proyek Baru
+              </button>
             </div>
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {projects.map((p) => <ProjectCard key={p.name} {...p} />)}
-            </div>
+
+            {/* Loading */}
+            {loading && (
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="glass rounded-2xl p-5 animate-pulse" style={{ border: '1px solid rgba(255,255,255,0.08)', height: '120px' }}>
+                    <div className="h-4 rounded w-3/4 mb-3" style={{ background: 'rgba(255,255,255,0.06)' }}/>
+                    <div className="h-3 rounded w-full mb-2" style={{ background: 'rgba(255,255,255,0.04)' }}/>
+                    <div className="h-1.5 rounded-full w-full mt-4" style={{ background: 'rgba(255,255,255,0.06)' }}/>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Error */}
+            {!loading && fetchError && (
+              <div className="rounded-2xl p-6 text-center" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}>
+                <p className="text-red-400 text-sm mb-3">⚠️ {fetchError}</p>
+                <button onClick={fetchCampaigns} className="text-xs px-4 py-2 rounded-xl font-medium" style={{ background: 'rgba(239,68,68,0.15)', color: '#f87171' }}>
+                  Coba Lagi
+                </button>
+              </div>
+            )}
+
+            {/* Empty state */}
+            {!loading && !fetchError && campaigns.length === 0 && (
+              <div className="glass rounded-2xl p-10 text-center" style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
+                <div className="text-5xl mb-4">🎣</div>
+                <p className="text-white font-semibold mb-2">Belum ada proyek</p>
+                <p className="text-slate-400 text-sm mb-5">Mulai ajukan proyek pertama Anda untuk mendapatkan modal dari investor.</p>
+                <button onClick={() => setShowCreate(true)} className="text-sm px-6 py-2.5 rounded-xl font-medium btn-emerald">
+                  + Ajukan Proyek Sekarang
+                </button>
+              </div>
+            )}
+
+            {/* Campaign cards */}
+            {!loading && campaigns.length > 0 && (
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {campaigns.map((c, i) => (
+                  <ProjectCard
+                    key={c.id}
+                    campaign={c}
+                    onEdit={setEditTarget}
+                    onDelete={setDeleteTarget}
+                    delay={delays[i % delays.length]}
+                  />
+                ))}
+              </div>
+            )}
           </section>
 
           {/* Activity Feed */}
           <section>
             <h2 className="text-white font-semibold mb-4 text-lg" style={{ fontFamily: 'Poppins, sans-serif' }}>Aktivitas Terbaru</h2>
-            <div className="glass rounded-2xl divide-y" style={{ border: '1px solid rgba(255,255,255,0.06)', divideColor: 'rgba(255,255,255,0.04)' }}>
-              {[
-                { icon: '💸', text: 'Investasi masuk dari Budi S.', time: '2 jam lalu', color: '#10b981' },
-                { icon: '📋', text: 'Laporan bulayan Proyek Udang telah dikirim', time: '1 hari lalu', color: '#06b6d4' },
-                { icon: '⭐', text: 'Mendapat ulasan bintang 5 dari investor', time: '3 hari lalu', color: '#f59e0b' },
-                { icon: '✅', text: 'Proyek Jaring Apung Kerapu selesai', time: '1 minggu lalu', color: '#a78bfa' },
-              ].map((act, i) => (
-                <div key={i} className="flex items-center gap-4 px-5 py-4">
-                  <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${act.color}15` }}>
-                    <span>{act.icon}</span>
+            <div className="glass rounded-2xl divide-y" style={{ border: '1px solid rgba(255,255,255,0.06)' }}>
+              {campaigns.length === 0 ? (
+                <div className="px-5 py-8 text-center text-slate-500 text-sm">Belum ada aktivitas.</div>
+              ) : (
+                campaigns.slice(0, 4).map((c) => (
+                  <div key={c.id} className="flex items-center gap-4 px-5 py-4">
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${statusColor[c.status]}15` }}>
+                      <span>{c.status === 'FUNDED' ? '✅' : c.status === 'CLOSED' ? '🔒' : '💸'}</span>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-white text-sm truncate">{c.title}</p>
+                      <p className="text-slate-500 text-xs mt-0.5">{statusLabel[c.status]} · {formatRupiah(c.currentAmount)} terkumpul</p>
+                    </div>
+                    <div className="w-2 h-2 rounded-full" style={{ background: statusColor[c.status] }}/>
                   </div>
-                  <div className="flex-1">
-                    <p className="text-white text-sm">{act.text}</p>
-                    <p className="text-slate-500 text-xs mt-0.5">{act.time}</p>
-                  </div>
-                  <div className="w-2 h-2 rounded-full" style={{ background: act.color }}/>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </section>
 
         </div>
       </main>
+
+      {/* ── Modals ── */}
+      {showCreate && (
+        <CampaignModal
+          mode="create"
+          onClose={() => setShowCreate(false)}
+          onSuccess={() => { setShowCreate(false); fetchCampaigns(); }}
+        />
+      )}
+      {editTarget && (
+        <CampaignModal
+          mode="edit"
+          initial={editTarget}
+          onClose={() => setEditTarget(null)}
+          onSuccess={() => { setEditTarget(null); fetchCampaigns(); }}
+        />
+      )}
+      {deleteTarget && (
+        <DeleteModal
+          campaign={deleteTarget}
+          onClose={() => setDeleteTarget(null)}
+          onSuccess={() => { setDeleteTarget(null); fetchCampaigns(); }}
+        />
+      )}
     </div>
   );
 }
